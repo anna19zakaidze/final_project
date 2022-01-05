@@ -1,8 +1,8 @@
 import Models.Book;
 import Models.BookList;
+import Models.User;
+import com.google.gson.Gson;
 import io.github.bonigarcia.wdm.WebDriverManager;
-import io.restassured.specification.RequestSpecification;
-import org.json.simple.JSONObject;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -12,38 +12,80 @@ import org.testng.annotations.Test;
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
 
+import java.util.HashMap;
 import java.util.List;
-import java.util.function.Predicate;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+import static io.restassured.RestAssured.given;
+import static io.restassured.http.ContentType.JSON;
+
 public class FinalProjectTests {
-//    @Test
-//    public void Test1(){
-//    //Add user with API https://bookstore.toolsqa.com/Account/v1/User
-//        RestAssured.baseURI ="https://bookstore.toolsqa.com/Account/v1/User";
-//                             "https://bookstore.toolsqa.com/swagger/#/Account/AccountV1UserPost"
-//        RequestSpecification request = RestAssured.given();
-//        JSONObject requestParams = new JSONObject();
-//        requestParams.put("userName","AnnaZak");
-//        requestParams.put("password", "AnPass012.");
-//        // Add a header stating the Request body is a JSON
-//        request.header("Content-Type", "application/json");
-//        // Add the Json to the body of the request
-//        request.body(requestParams.toJSONString());
-//
-//        // Post the request and check the response
-//        Response response = request.post("");
-//        int statusCode = response.getStatusCode();
-//        Assert.assertEquals(statusCode, "201");
-//        String successCode = response.jsonPath().get("SuccessCode");
-//        Assert.assertEquals( "Correct Success code was returned", successCode, "OPERATION_SUCCESS");
-//    }
 
     public WebDriver openBrowser(){
         //open chrome browser
         WebDriverManager.chromedriver().setup();
         WebDriver driver = new ChromeDriver();
         return driver;
+    }
+    @Test
+    public void Test1(){
+
+        //Add user with API https://bookstore.toolsqa.com/Account/v1/User
+        User usr = new User();
+        usr.username="Anavyaa";
+        usr.password="AnPass012!.";
+        Map<String,String> user = new HashMap<String, String>();
+        user.put("userName",usr.username);
+        user.put("password",usr.password);
+        Response response = given().contentType(JSON)
+                .body(user).post("https://bookstore.toolsqa.com/Account/v1/User");
+        response.print();
+        User createdUser= response
+                .jsonPath()
+                .getObject("", User.class);
+
+        //Go to https://demoqa.com/login
+        WebDriver driver = openBrowser();
+        String url="https://demoqa.com/login";
+        driver.get(url);
+        //Login with added account
+        WebElement userName = driver.findElement(By.id("userName"));
+        WebElement password = driver.findElement(By.id("password"));
+        WebElement loginBtn = driver.findElement(By.id("login"));
+        userName.sendKeys(createdUser.username);
+        password.sendKeys(usr.password);
+        System.out.println(loginBtn.getText());
+        loginBtn.click();
+        driver.close();
+        //Go to https://demoqa.com/profile
+        //Click on 'Delete Account'
+        url="https://demoqa.com/profile";
+        driver.get(url);
+        WebElement deleteBtn = driver.findElement(By.id("submit"));
+        deleteBtn.click();
+        //Validate popup message 'User Deleted.'
+        Assert.assertEquals(driver.switchTo().alert().getText(),"User Deleted.");
+        //Try to login with deleted account credentials
+        url="https://demoqa.com/login";
+        driver.get(url);
+        userName.sendKeys(createdUser.username);
+        password.sendKeys(createdUser.password);
+        loginBtn.click();
+        //Validate error text 'Invalid username or password!'
+        WebElement errorTxt = driver.findElement(By.id("name"));
+        Assert.assertEquals(errorTxt,"Invalid username or password!");
+        //Call https://bookstore.toolsqa.com/Account/v1/Authorized with deleted credentials
+        User usr2 = new User();
+        usr2.username=createdUser.username;
+        usr2.password=createdUser.password;
+        Map<String,String> user2 = new HashMap<String, String>();
+        user.put("userName",usr2.username);
+        user.put("password",usr2.password);
+        Response response2 = given().contentType(JSON)
+                .body(user).post("https://bookstore.toolsqa.com/Account/v1/User");
+        int responseMessage = response2.getStatusCode();
+        Assert.assertEquals(responseMessage,404);
     }
 
     @Test
